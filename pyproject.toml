@@ -1,0 +1,82 @@
+[project]
+name = "devsecops-automation-engine"
+version = "2.0.0"
+description = "Deterministic AST + security scanning with AI-assisted, verified remediation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Veer Shah" }]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = [".venv", "data"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",      # pycodestyle + pyflakes
+    "I",                # isort
+    "UP",               # pyupgrade
+    "B",                # flake8-bugbear
+    "C4",               # comprehensions
+    "SIM",              # flake8-simplify
+    "ASYNC",            # flake8-async
+    "S",                # flake8-bandit (security)
+    "RUF",
+]
+ignore = [
+    "S101",   # assert: used deliberately in a few internal invariants and tests
+    "S104",   # bind 0.0.0.0: intentional in the container entrypoint
+    "B008",   # FastAPI Depends()-style default args are the framework idiom
+    "SIM105", # contextlib.suppress vs try/except: both are fine, keep local style
+    "UP042",  # `(str, Enum)` is intentional and Pydantic-friendly; not switching to StrEnum
+    "S105",   # "hardcoded password" false-positives on rule ids / header names
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "E501", "ASYNC", "B017"]
+"scanner.py" = ["E501"]       # long, well-formatted regex + explanatory rule strings
+"verification.py" = ["E501"]
+"models.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["models", "scanner", "verification", "persistence", "llm", "main"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["models.py", "scanner.py", "verification.py", "persistence.py", "llm.py", "main.py"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+# Starlette's BaseHTTPMiddleware.dispatch signature is intentionally loose; a few
+# framework seams are pragmatically untyped. These are the only escape hatches.
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["sse_starlette.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:starlette.*",
+]
+
+[tool.coverage.run]
+source = ["models", "scanner", "verification", "persistence", "llm", "main"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]

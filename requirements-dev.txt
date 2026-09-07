@@ -1,0 +1,12 @@
+# Development / CI tooling. Install on top of requirements.txt:
+#   pip install -r requirements.txt -r requirements-dev.txt
+-r requirements.txt
+
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+coverage==7.16.0
+respx==0.23.1          # httpx mock transport for LLM client tests
+ruff==0.16.6
+mypy==2.3.1
+pip-audit==2.10.1
