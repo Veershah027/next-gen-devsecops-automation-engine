@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DevSecOps Automation Engine — Operator Console</title>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" referrerpolicy="no-referrer" />
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { ink: "#0b1120", panel: "#111a2e", edge: "#1e293b" },
+      fontFamily: { mono: ['"JetBrains Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"] },
+    } },
+  };
+</script>
+<style>
+  html, body { background: #0b1120; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #0b1120; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  .term-line { white-space: pre-wrap; word-break: break-word; }
+  .slide-panel { transition: transform .35s cubic-bezier(.4,0,.2,1), opacity .35s ease; }
+  .slide-panel.hidden-panel { transform: translateY(105%); opacity: 0; pointer-events: none; }
+  textarea { tab-size: 4; }
+  .pulse-dot { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .diff-add { color: #6ee7b7; background: rgba(16,185,129,.10); }
+  .diff-del { color: #fda4af; background: rgba(244,63,94,.10); }
+  .diff-hunk { color: #7dd3fc; }
+</style>
+</head>
+<body class="min-h-screen text-slate-200 font-sans antialiased">
+
+  <header class="border-b border-edge bg-panel/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-[1600px] mx-auto px-5 py-3 flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-400 grid place-items-center shadow-lg shadow-cyan-500/20">
+          <i class="fa-solid fa-shield-halved text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-sm font-semibold tracking-wide text-white leading-tight">Next-Gen DevSecOps Automation Engine</h1>
+          <p class="text-[11px] text-slate-400 leading-tight">Deterministic scanning &middot; AI-assisted &amp; verified remediation &middot; SSE telemetry</p>
+        </div>
+      </div>
+      <div class="ml-auto flex flex-wrap items-center gap-2 text-[11px]">
+        <span id="pill-api" class="inline-flex items-center gap-1.5 rounded-full border border-edge bg-ink px-2.5 py-1"><span class="h-2 w-2 rounded-full bg-slate-500"></span> API</span>
+        <span id="pill-sse" class="inline-flex items-center gap-1.5 rounded-full border border-edge bg-ink px-2.5 py-1"><span class="h-2 w-2 rounded-full bg-slate-500"></span> SSE</span>
+        <span id="pill-llm" class="inline-flex items-center gap-1.5 rounded-full border border-edge bg-ink px-2.5 py-1"><i class="fa-solid fa-robot text-slate-400"></i> <span>remediation: —</span></span>
+        <span id="pill-gate" class="hidden inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold"></span>
+        <button id="btn-settings" class="rounded-full border border-edge bg-ink px-2.5 py-1 hover:border-cyan-500/60" title="Endpoint settings"><i class="fa-solid fa-gear text-slate-400"></i></button>
+      </div>
+    </div>
+    <div id="settings-row" class="hidden border-t border-edge bg-ink/60">
+      <div class="max-w-[1600px] mx-auto px-5 py-2 flex flex-wrap items-center gap-3 text-[11px]">
+        <label class="text-slate-400">API base URL</label>
+        <input id="api-base" class="flex-1 min-w-[200px] max-w-md rounded bg-panel border border-edge px-2 py-1 font-mono text-cyan-300 outline-none focus:border-cyan-500" placeholder="(same origin)" />
+        <button id="btn-save-base" class="rounded bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 font-medium">Save &amp; reconnect</button>
+        <span class="text-slate-500">Blank = same origin as this page.</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Metrics strip -->
+  <div id="metrics" class="hidden max-w-[1600px] mx-auto px-5 pt-4">
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-total" class="text-lg font-semibold text-white">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">findings</div></div>
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-critical" class="text-lg font-semibold text-rose-400">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">critical</div></div>
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-high" class="text-lg font-semibold text-orange-400">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">high</div></div>
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-medium" class="text-lg font-semibold text-amber-400">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">medium</div></div>
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-low" class="text-lg font-semibold text-sky-400">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">low</div></div>
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-verified" class="text-lg font-semibold text-emerald-400">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">verified fixes</div></div>
+      <div class="rounded-lg border border-edge bg-panel px-3 py-2"><div id="m-duration" class="text-lg font-semibold text-white">–</div><div class="text-[10px] uppercase tracking-wide text-slate-500">duration</div></div>
+    </div>
+    <div id="agent-status" class="mt-2 flex flex-wrap gap-2 text-[11px]"></div>
+  </div>
+
+  <main class="max-w-[1600px] mx-auto px-5 py-4 grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <section class="rounded-xl border border-edge bg-panel flex flex-col overflow-hidden">
+      <div class="flex items-center gap-2 px-4 py-2.5 border-b border-edge bg-ink/40">
+        <i class="fa-solid fa-file-code text-cyan-400"></i>
+        <h2 class="text-xs font-semibold text-white tracking-wide uppercase">Target Source</h2>
+        <input id="filename" value="payments_service.py" class="ml-auto w-56 rounded bg-panel border border-edge px-2 py-1 text-[12px] font-mono text-slate-300 outline-none focus:border-cyan-500" />
+      </div>
+      <textarea id="source" spellcheck="false" class="flex-1 min-h-[420px] resize-none bg-[#0a0f1d] text-[12.5px] leading-relaxed font-mono text-slate-200 p-4 outline-none"></textarea>
+      <div class="flex items-center gap-3 px-4 py-3 border-t border-edge bg-ink/40">
+        <label class="inline-flex items-center gap-2 text-[12px] text-slate-300 select-none">
+          <input id="opt-remediation" type="checkbox" checked class="accent-cyan-500" /> Generate &amp; verify patches
+        </label>
+        <button id="btn-analyze" class="ml-auto inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-cyan-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed">
+          <i id="analyze-icon" class="fa-solid fa-play"></i> <span id="analyze-label">Execute Pipeline</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="rounded-xl border border-edge bg-panel flex flex-col overflow-hidden">
+      <div class="flex items-center gap-2 px-4 py-2.5 border-b border-edge bg-ink/40">
+        <i class="fa-solid fa-terminal text-cyan-400"></i>
+        <h2 class="text-xs font-semibold text-white tracking-wide uppercase">Agent Telemetry</h2>
+        <span class="text-[11px] text-slate-500 font-mono">/api/v1/stream-logs</span>
+        <button id="btn-clear-console" class="ml-auto text-[11px] text-slate-400 hover:text-cyan-300"><i class="fa-solid fa-eraser"></i> clear</button>
+      </div>
+      <div id="console" class="flex-1 min-h-[420px] max-h-[560px] overflow-y-auto bg-black text-[12px] leading-[1.55] font-mono p-4 space-y-0.5">
+        <div class="term-line text-cyan-600">// waiting for telemetry stream…</div>
+      </div>
+    </section>
+  </main>
+
+  <section class="max-w-[1600px] mx-auto px-5 pb-44">
+    <div class="rounded-xl border border-edge bg-panel overflow-hidden">
+      <div class="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-edge bg-ink/40">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+        <h2 class="text-xs font-semibold text-white tracking-wide uppercase">Detected Flaws</h2>
+        <span id="analysis-meta" class="text-[11px] text-slate-400"></span>
+        <div class="ml-auto flex items-center gap-2 text-[11px]">
+          <button id="btn-export" class="hidden inline-flex items-center gap-1.5 rounded-lg border border-edge bg-ink text-slate-300 px-3 py-1.5 font-medium hover:border-cyan-500/60"><i class="fa-solid fa-download"></i> Download JSON</button>
+          <button id="btn-show-patches" class="hidden inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/50 bg-cyan-500/10 text-cyan-300 px-3 py-1.5 font-medium hover:bg-cyan-500/20"><i class="fa-solid fa-code-compare"></i> View patch diff</button>
+        </div>
+      </div>
+      <div id="findings" class="divide-y divide-edge">
+        <div class="px-4 py-10 text-center text-slate-500 text-sm"><i class="fa-regular fa-circle-check text-2xl mb-2 block text-slate-600"></i>No analysis run yet.</div>
+      </div>
+      <div id="webhook-box" class="hidden border-t border-edge">
+        <div class="px-4 py-2 text-[11px] font-semibold text-indigo-300 bg-indigo-500/10"><i class="fa-brands fa-github"></i> RECENT WEBHOOK DELIVERIES</div>
+        <div id="webhook-list" class="divide-y divide-edge text-[12px]"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="patch-panel" class="slide-panel hidden-panel fixed inset-x-0 bottom-0 z-40 border-t border-cyan-500/30 bg-panel shadow-2xl shadow-black/60">
+    <div class="max-w-[1600px] mx-auto">
+      <div class="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-edge">
+        <i class="fa-solid fa-wand-magic-sparkles text-cyan-400"></i>
+        <h2 class="text-xs font-semibold text-white tracking-wide uppercase">Verified Remediation</h2>
+        <span id="patch-mode" class="text-[11px] rounded-full px-2 py-0.5 border border-edge text-slate-300"></span>
+        <div id="patch-tabs" class="flex items-center gap-1 overflow-x-auto"></div>
+        <div class="ml-auto flex items-center gap-2">
+          <button id="btn-view-side" class="text-[11px] rounded px-2 py-1 border border-cyan-500 text-cyan-300 bg-cyan-500/10">side-by-side</button>
+          <button id="btn-view-diff" class="text-[11px] rounded px-2 py-1 border border-edge text-slate-400">unified diff</button>
+          <button id="btn-copy-patch" class="text-[11px] rounded px-2 py-1 border border-edge text-slate-300 hover:border-cyan-500/60"><i class="fa-solid fa-copy"></i> copy patch</button>
+          <button id="btn-copy-diff" class="text-[11px] rounded px-2 py-1 border border-edge text-slate-300 hover:border-cyan-500/60"><i class="fa-solid fa-copy"></i> copy diff</button>
+          <button id="btn-hide-patches" class="text-slate-400 hover:text-white" title="Collapse"><i class="fa-solid fa-chevron-down"></i></button>
+        </div>
+      </div>
+      <div id="view-side" class="grid grid-cols-1 md:grid-cols-2 gap-px bg-edge max-h-[42vh] overflow-hidden">
+        <div class="bg-panel flex flex-col">
+          <div class="px-4 py-2 text-[11px] font-semibold text-rose-300 bg-rose-500/10 border-b border-rose-500/20"><i class="fa-solid fa-bug"></i> FLAGGED SOURCE</div>
+          <pre id="patch-before" class="flex-1 overflow-auto p-4 text-[12px] leading-relaxed font-mono text-rose-200/90 bg-[#170d12]"></pre>
+        </div>
+        <div class="bg-panel flex flex-col">
+          <div class="px-4 py-2 text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 border-b border-emerald-500/20"><i class="fa-solid fa-shield-halved"></i> <span id="patch-source-label">SUGGESTED PATCH</span></div>
+          <pre id="patch-after" class="flex-1 overflow-auto p-4 text-[12px] leading-relaxed font-mono text-emerald-300 bg-[#0a1710]"></pre>
+        </div>
+      </div>
+      <pre id="view-diff" class="hidden max-h-[42vh] overflow-auto p-4 text-[12px] leading-relaxed font-mono bg-[#0a0f1d]"></pre>
+      <div id="patch-verdict" class="px-4 py-2.5 text-[12px] border-t border-edge"></div>
+    </div>
+  </div>
+
+<script type="text/plain" id="sample-source">
+import os
+import sqlite3
+import subprocess
+import pickle
+import hashlib
+
+AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"
+DATABASE_URL = "postgres://admin:S3cr3tPassw0rd@10.0.0.5:5432/prod"
+
+
+def find_user(conn, username):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE name = '" + username + "'")
+    return cur.fetchone()
+
+
+def sync_repo(repo_url):
+    subprocess.run("git clone " + repo_url, shell=True)
+
+
+def load_state(blob):
+    return pickle.loads(blob)
+
+
+def password_digest(password):
+    return hashlib.md5(password.encode()).hexdigest()
+
+
+def crunch(rows, cols, cells):
+    total = 0
+    for r in rows:
+        for c in cols:
+            for x in cells:
+                if r == x:
+                    total += eval("r * c")
+    return total
+
+
+def load_config(path, cache={}):
+    try:
+        return cache[path]
+    except:
+        cache[path] = open(path).read()
+        return cache[path]
+</script>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const LS_KEY = "devsecops.apiBase";
+  const state = { apiBase: resolveApiBase(), eventSource: null, report: null, patches: [], activePatch: 0, running: false, view: "side" };
+
+  function resolveApiBase() {
+    const stored = localStorage.getItem(LS_KEY);
+    if (stored !== null) return stored.replace(/\/+$/, "");
+    if (location.protocol === "file:") return "http://localhost:8000";
+    return "";
+  }
+  const api = (p) => `${state.apiBase}${p}`;
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+  const SEV = {
+    critical: { badge: "bg-rose-500/15 text-rose-300 border-rose-500/40", dot: "bg-rose-500", icon: "fa-skull-crossbones" },
+    high:     { badge: "bg-orange-500/15 text-orange-300 border-orange-500/40", dot: "bg-orange-500", icon: "fa-fire" },
+    medium:   { badge: "bg-amber-500/15 text-amber-300 border-amber-500/40", dot: "bg-amber-500", icon: "fa-triangle-exclamation" },
+    low:      { badge: "bg-sky-500/15 text-sky-300 border-sky-500/40", dot: "bg-sky-500", icon: "fa-circle-info" },
+    info:     { badge: "bg-slate-500/15 text-slate-300 border-slate-500/40", dot: "bg-slate-500", icon: "fa-circle-info" },
+  };
+  const VERDICT = {
+    validated:   "bg-emerald-500/15 text-emerald-300 border-emerald-500/40",
+    unresolved:  "bg-amber-500/15 text-amber-300 border-amber-500/40",
+    rejected:    "bg-rose-500/15 text-rose-300 border-rose-500/40",
+    not_checked: "bg-slate-500/15 text-slate-300 border-slate-500/40",
+  };
+
+  function setPill(id, ok, label) {
+    const el = $(id), dot = el.querySelector("span.h-2");
+    if (dot) dot.className = `h-2 w-2 rounded-full ${ok === true ? "bg-emerald-400 pulse-dot" : ok === false ? "bg-rose-500" : "bg-slate-500"}`;
+    if (label) { const t = el.querySelector("span:last-child"); if (t && t !== el) t.textContent = label; }
+  }
+
+  async function pollHealth() {
+    try {
+      const r = await fetch(api("/health"), { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status);
+      const h = await r.json();
+      setPill("pill-api", true);
+      const txt = h.llm_live ? `remediation: ${h.llm_provider} + verified` : "remediation: verified templates";
+      $("pill-llm").querySelector("span").textContent = txt;
+      $("pill-llm").querySelector("i").className = `fa-solid fa-robot ${h.llm_live ? "text-emerald-400" : "text-slate-400"}`;
+      if (h.webhook_enabled) loadWebhooks();
+    } catch { setPill("pill-api", false); }
+  }
+
+  const LEVEL = { INFO: "text-cyan-300", WARNING: "text-amber-300", ERROR: "text-rose-400", DEBUG: "text-slate-500" };
+  function connectStream() {
+    if (state.eventSource) state.eventSource.close();
+    const es = new EventSource(api("/api/v1/stream-logs"));
+    state.eventSource = es;
+    es.addEventListener("open", () => setPill("pill-sse", true));
+    es.addEventListener("error", () => setPill("pill-sse", false));
+    es.addEventListener("connected", () => { setPill("pill-sse", true); appendConsole({ level: "INFO", agent: "stream", message: "telemetry stream attached" }); });
+    es.addEventListener("ping", () => setPill("pill-sse", true));
+    es.addEventListener("log", (ev) => { try { appendConsole(JSON.parse(ev.data)); } catch {} });
+  }
+  function appendConsole({ ts, agent, level, message }) {
+    const box = $("console");
+    const stamp = new Date(ts || Date.now()).toLocaleTimeString("en-GB");
+    const row = document.createElement("div");
+    row.className = "term-line";
+    row.innerHTML = `<span class="text-slate-600">${stamp}</span> <span class="text-indigo-400">${esc(agent || "-")}</span> <span class="${LEVEL[level] || "text-slate-300"}">${esc(message)}</span>`;
+    box.appendChild(row);
+    while (box.children.length > 600) box.removeChild(box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function runAnalysis() {
+    if (state.running) return;
+    state.running = true; toggleRunning(true); resetResults();
+    const payload = {
+      filename: $("filename").value.trim() || "submission.py",
+      language: "python",
+      source_code: $("source").value,
+      enable_remediation: $("opt-remediation").checked,
+    };
+    try {
+      const r = await fetch(api("/api/v1/analyze"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const data = await r.json();
+      if (!r.ok) { appendConsole({ level: "ERROR", agent: "client", message: `${data.error || r.status}: ${data.message || "request failed"}` }); renderError(data); return; }
+      state.report = data;
+      renderReport(data);
+    } catch (err) {
+      appendConsole({ level: "ERROR", agent: "client", message: `network error: ${err.message}` });
+      renderError({ error: "network_error", message: `Could not reach ${state.apiBase || "the API"} — check the endpoint in settings and that the server is running.` });
+    } finally { state.running = false; toggleRunning(false); }
+  }
+  function toggleRunning(on) {
+    $("btn-analyze").disabled = on;
+    $("analyze-icon").className = on ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-play";
+    $("analyze-label").textContent = on ? "Running pipeline…" : "Execute Pipeline";
+  }
+
+  function resetResults() {
+    $("findings").innerHTML = `<div class="px-4 py-10 text-center text-slate-500 text-sm"><i class="fa-solid fa-gear fa-spin text-2xl mb-2 block text-slate-600"></i>pipeline dispatched…</div>`;
+    $("metrics").classList.add("hidden");
+    $("analysis-meta").textContent = "";
+    $("btn-show-patches").classList.add("hidden");
+    $("btn-export").classList.add("hidden");
+    $("pill-gate").classList.add("hidden");
+    hidePatchPanel();
+  }
+  function renderError(data) {
+    $("findings").innerHTML = `<div class="px-4 py-8 text-center text-rose-300 text-sm"><i class="fa-solid fa-circle-xmark text-2xl mb-2 block"></i><span class="font-semibold">${esc(data.error || "error")}</span><br><span class="text-slate-400">${esc(data.message || "")}</span></div>`;
+  }
+
+  function renderReport(d) {
+    const gate = $("pill-gate");
+    gate.classList.remove("hidden");
+    gate.className = `inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold ${d.gate_passed ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`;
+    gate.innerHTML = d.gate_passed ? '<i class="fa-solid fa-circle-check"></i> GATE PASSED' : '<i class="fa-solid fa-circle-xmark"></i> GATE FAILED';
+
+    const bs = d.metrics.by_severity || {};
+    $("m-total").textContent = d.metrics.total_findings;
+    $("m-critical").textContent = bs.critical || 0;
+    $("m-high").textContent = bs.high || 0;
+    $("m-medium").textContent = bs.medium || 0;
+    $("m-low").textContent = bs.low || 0;
+    const verified = (d.patches || []).filter((p) => p.validation && p.validation.status === "validated").length;
+    $("m-verified").textContent = `${verified}/${(d.patches || []).length}`;
+    $("m-duration").textContent = `${d.duration_ms.toFixed(0)} ms`;
+    $("metrics").classList.remove("hidden");
+
+    $("agent-status").innerHTML = (d.agent_reports || []).map((a) => {
+      const ok = a.status === "completed";
+      const cls = ok ? "border-emerald-500/40 text-emerald-300" : "border-rose-500/40 text-rose-300";
+      return `<span class="rounded border ${cls} px-2 py-0.5"><i class="fa-solid ${ok ? "fa-check" : "fa-xmark"}"></i> ${esc(a.agent)} · ${a.duration_ms.toFixed(0)} ms</span>`;
+    }).join("");
+
+    $("analysis-meta").textContent = `${d.filename} · highest: ${d.metrics.highest_severity} · remediation: ${d.remediation_mode}${d.stored ? " · stored" : ""}`;
+    $("btn-export").classList.remove("hidden");
+
+    const box = $("findings");
+    if (!d.findings.length) {
+      box.innerHTML = `<div class="px-4 py-10 text-center text-emerald-400 text-sm"><i class="fa-regular fa-circle-check text-2xl mb-2 block"></i>Clean — no findings.</div>`;
+    } else {
+      box.innerHTML = "";
+      d.findings.forEach((f) => {
+        const m = SEV[f.severity] || SEV.info;
+        const patch = (d.patches || []).find((p) => p.target_finding_id === f.id);
+        const el = document.createElement("details");
+        el.className = "group";
+        el.innerHTML = `
+          <summary class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-ink/40 list-none">
+            <span class="mt-0.5 h-2 w-2 rounded-full ${m.dot} shrink-0"></span>
+            <span class="shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${m.badge}"><i class="fa-solid ${m.icon}"></i> ${f.severity}</span>
+            <span class="flex-1 min-w-0">
+              <span class="text-sm text-slate-100">${esc(f.title)}</span>
+              <span class="block text-[11px] text-slate-500 font-mono">${esc(f.agent)} · ${esc(f.category)}${f.position ? " · line " + f.position.line : ""}</span>
+            </span>
+            ${patch ? verdictChip(patch.validation) : ""}
+            <i class="fa-solid fa-chevron-down text-slate-600 mt-1 transition group-open:rotate-180"></i>
+          </summary>
+          <div class="px-4 pb-4 pl-12 space-y-2 text-[12.5px]">
+            <p class="text-slate-300">${esc(f.detail)}</p>
+            ${f.evidence ? `<p class="font-mono text-[11px] rounded bg-black/40 border border-edge px-2 py-1 text-slate-400">evidence (redacted): ${esc(f.evidence)}</p>` : ""}
+            ${f.remediation_hint ? `<p class="text-cyan-300/90"><i class="fa-solid fa-lightbulb"></i> ${esc(f.remediation_hint)}</p>` : ""}
+            ${patch ? `<button class="jump-patch text-[11px] rounded border border-cyan-500/40 bg-cyan-500/10 text-cyan-300 px-2 py-1" data-fid="${esc(f.id)}"><i class="fa-solid fa-code-compare"></i> show patch (${patch.validation.status})</button>` : ""}
+          </div>`;
+        box.appendChild(el);
+      });
+      box.querySelectorAll(".jump-patch").forEach((b) => b.addEventListener("click", () => {
+        const idx = state.patches.findIndex((p) => p.target_finding_id === b.dataset.fid);
+        if (idx >= 0) { selectPatch(idx); showPatchPanel(); }
+      }));
+    }
+    renderPatches(d);
+  }
+
+  function verdictChip(v) {
+    if (!v) return "";
+    const label = { validated: "verified fix", unresolved: "unresolved", rejected: "rejected", not_checked: "guidance" }[v.status] || v.status;
+    return `<span class="shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${VERDICT[v.status] || VERDICT.not_checked}">${label}</span>`;
+  }
+
+  function renderPatches(d) {
+    state.patches = d.patches || [];
+    state.activePatch = 0;
+    if (!state.patches.length) { $("btn-show-patches").classList.add("hidden"); return; }
+    $("btn-show-patches").classList.remove("hidden");
+    $("patch-mode").textContent = `mode: ${d.remediation_mode}`;
+    $("patch-tabs").innerHTML = state.patches.map((p, i) => `
+      <button data-idx="${i}" class="patch-tab whitespace-nowrap rounded px-2.5 py-1 text-[11px] border ${i === 0 ? "border-cyan-500 text-cyan-300 bg-cyan-500/10" : "border-edge text-slate-400"}">
+        ${esc(p.category)}${p.source === "llm" ? " ✦" : ""}
+      </button>`).join("");
+    $("patch-tabs").querySelectorAll(".patch-tab").forEach((t) => t.addEventListener("click", () => selectPatch(Number(t.dataset.idx))));
+    selectPatch(0);
+  }
+
+  function selectPatch(idx) {
+    const p = state.patches[idx];
+    if (!p) return;
+    state.activePatch = idx;
+    $("patch-tabs").querySelectorAll(".patch-tab").forEach((t, i) => {
+      t.className = `patch-tab whitespace-nowrap rounded px-2.5 py-1 text-[11px] border ${i === idx ? "border-cyan-500 text-cyan-300 bg-cyan-500/10" : "border-edge text-slate-400"}`;
+    });
+    $("patch-before").textContent = p.original_snippet || "(no original snippet — guidance patch)";
+    $("patch-after").textContent = p.suggested_code;
+    $("patch-source-label").textContent = p.source === "llm" ? `AI PATCH — ${(p.provider || "")} ${(p.model || "")}`.trim() : "TEMPLATE PATCH";
+    $("view-diff").innerHTML = renderDiff(p.unified_diff);
+    const v = p.validation || {};
+    const chipCls = VERDICT[v.status] || VERDICT.not_checked;
+    const errs = (v.errors || []).length ? ` · ${(v.errors || []).map(esc).join("; ")}` : "";
+    const residual = (v.residual_categories || []).length ? ` · still flags: ${v.residual_categories.join(", ")}` : "";
+    $("patch-verdict").innerHTML =
+      `<span class="rounded border px-2 py-0.5 text-[11px] font-semibold uppercase ${chipCls}">${v.status}</span> ` +
+      `<span class="text-slate-400">${esc(p.summary)} — ${esc(p.rationale)}</span>` +
+      `<span class="text-slate-500 block mt-1">parsed_ok: ${v.parsed_ok} · finding_resolved: ${v.finding_resolved} · confidence ${(p.confidence * 100).toFixed(0)}%${errs}${residual}</span>`;
+  }
+
+  function renderDiff(diff) {
+    if (!diff) return '<span class="text-slate-500">no diff for this patch</span>';
+    return diff.split("\n").map((l) => {
+      const c = l.startsWith("+") && !l.startsWith("+++") ? "diff-add" : l.startsWith("-") && !l.startsWith("---") ? "diff-del" : l.startsWith("@@") ? "diff-hunk" : "text-slate-400";
+      return `<span class="${c}">${esc(l)}</span>`;
+    }).join("\n");
+  }
+
+  async function loadWebhooks() {
+    try {
+      const r = await fetch(api("/api/v1/webhook/deliveries"), { cache: "no-store" });
+      const d = await r.json();
+      if (!d.count) return;
+      $("webhook-box").classList.remove("hidden");
+      $("webhook-list").innerHTML = d.deliveries.map((w) => `
+        <div class="px-4 py-2">
+          <div class="text-slate-200"><i class="fa-brands fa-github"></i> ${esc(w.repository)} <span class="text-slate-500 font-mono">${esc(w.sha.slice(0, 8))}</span>
+            <span class="rounded border px-1.5 py-0.5 text-[10px] ml-1 ${w.gate_passed ? "border-emerald-500/40 text-emerald-300" : "border-rose-500/40 text-rose-300"}">${w.gate_passed ? "gate passed" : "gate failed"}</span>
+          </div>
+          ${w.files.map((f) => `<div class="text-[11px] text-slate-500 font-mono pl-5">${esc(f.filename)} — ${f.analyzed ? `${f.total_findings} finding(s), ${f.highest_severity}` : "skipped: " + esc(f.error || "")}</div>`).join("")}
+        </div>`).join("");
+    } catch {}
+  }
+
+  function showPatchPanel() { $("patch-panel").classList.remove("hidden-panel"); }
+  function hidePatchPanel() { $("patch-panel").classList.add("hidden-panel"); }
+  function setView(v) {
+    state.view = v;
+    $("view-side").classList.toggle("hidden", v !== "side");
+    $("view-diff").classList.toggle("hidden", v !== "diff");
+    $("btn-view-side").className = `text-[11px] rounded px-2 py-1 border ${v === "side" ? "border-cyan-500 text-cyan-300 bg-cyan-500/10" : "border-edge text-slate-400"}`;
+    $("btn-view-diff").className = `text-[11px] rounded px-2 py-1 border ${v === "diff" ? "border-cyan-500 text-cyan-300 bg-cyan-500/10" : "border-edge text-slate-400"}`;
+  }
+  async function copyText(txt, btn) {
+    try { await navigator.clipboard.writeText(txt || ""); const o = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-check"></i> copied'; setTimeout(() => (btn.innerHTML = o), 1200); } catch {}
+  }
+  function downloadJSON() {
+    if (!state.report) return;
+    const blob = new Blob([JSON.stringify(state.report, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `analysis-${state.report.analysis_id}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  $("source").value = $("sample-source").textContent.trim() + "\n";
+  $("btn-analyze").addEventListener("click", runAnalysis);
+  $("btn-clear-console").addEventListener("click", () => ($("console").innerHTML = ""));
+  $("btn-show-patches").addEventListener("click", showPatchPanel);
+  $("btn-hide-patches").addEventListener("click", hidePatchPanel);
+  $("btn-export").addEventListener("click", downloadJSON);
+  $("btn-view-side").addEventListener("click", () => setView("side"));
+  $("btn-view-diff").addEventListener("click", () => setView("diff"));
+  $("btn-copy-patch").addEventListener("click", (e) => copyText(state.patches[state.activePatch]?.suggested_code, e.currentTarget));
+  $("btn-copy-diff").addEventListener("click", (e) => copyText(state.patches[state.activePatch]?.unified_diff, e.currentTarget));
+  $("btn-settings").addEventListener("click", () => $("settings-row").classList.toggle("hidden"));
+  $("api-base").value = localStorage.getItem(LS_KEY) ?? "";
+  $("btn-save-base").addEventListener("click", () => {
+    localStorage.setItem(LS_KEY, $("api-base").value.trim());
+    state.apiBase = resolveApiBase();
+    connectStream(); pollHealth();
+    appendConsole({ level: "INFO", agent: "client", message: `endpoint set to ${state.apiBase || "(same origin)"}` });
+  });
+  document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") runAnalysis(); });
+
+  connectStream();
+  pollHealth();
+  setInterval(pollHealth, 10000);
+})();
+</script>
+</body>
+</html>
