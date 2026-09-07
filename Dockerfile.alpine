@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+#
+# Alpine (musl) variant. Smallest image; relies on musllinux wheels for
+# pydantic-core. The builder keeps a toolchain ONLY as a fallback for a missing
+# wheel; it is never copied into the runtime layer.
+#
+# Build:  docker build -f Dockerfile.alpine -t devsecops-engine:alpine .
+
+########################  builder  ########################
+FROM python:3.13-alpine AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apk add --no-cache build-base libffi-dev cargo
+
+WORKDIR /build
+COPY requirements.txt ./
+RUN python -m venv /opt/venv \
+ && /opt/venv/bin/pip install --upgrade pip \
+ && /opt/venv/bin/pip install -r requirements.txt
+
+########################  runtime  ########################
+FROM python:3.13-alpine AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    DEVSECOPS_ENVIRONMENT=production \
+    DEVSECOPS_LOG_JSON=true
+
+RUN apk add --no-cache curl \
+ && addgroup -S app \
+ && adduser -S -G app -h /app -s /sbin/nologin app
+
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=app:app main.py models.py scanner.py verification.py persistence.py llm.py index.html ./
+RUN mkdir -p /app/data && chown app:app /app/data
+
+USER app
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+
+ENTRYPOINT ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

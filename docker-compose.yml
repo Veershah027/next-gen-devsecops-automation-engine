@@ -1,0 +1,79 @@
+# Next-Gen DevSecOps Automation Engine - one-command local / cloud stack.
+#
+#   docker compose up --build
+#
+# Engine API:  http://localhost:8000   (docs at /docs, dashboard at /dashboard)
+# Dashboard :  http://localhost:8080   (nginx-served static UI, same file)
+#
+# Deploys to AWS ECS / Google Cloud Run: build & push the `engine` image, set the
+# DEVSECOPS_* environment, expose port 8000. Persistence is optional; disable it
+# and the volume for a stateless deployment.
+
+name: devsecops-automation-engine
+
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile          # swap to Dockerfile.alpine for a musl build
+    image: devsecops-automation-engine:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DEVSECOPS_ENVIRONMENT: production
+      DEVSECOPS_LOG_JSON: "true"
+      DEVSECOPS_SERVE_DASHBOARD: "true"
+      DEVSECOPS_CORS_ALLOW_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
+      DEVSECOPS_PERSISTENCE_ENABLED: "true"
+      DEVSECOPS_DATABASE_PATH: /app/data/analyses.db
+    ports:
+      - "8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    volumes:
+      - engine-data:/app/data          # writable store for the optional SQLite history
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  dashboard:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      engine:
+        condition: service_healthy
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    ports:
+      - "8080:80"
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=16m
+      - /var/run:size=1m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  engine-data:
