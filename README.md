@@ -212,7 +212,10 @@ or watch `GET /api/v1/stream-logs`.
 
 ## Workspace UI
 
-`GET /dashboard` (or open `index.html` directly and set the API URL in Settings).
+Open **`http://localhost:8000/dashboard`** once the engine is running — it is
+served same-origin so it works with no configuration. (If you instead open
+`index.html` through a static server such as VS Code Live Server, the UI
+auto-detects the engine on `:8000`, or you can set the API URL in Settings.)
 A single self-contained HTML file — Tailwind + Inter/JetBrains Mono via CDN,
 vanilla JS, **no build step**. Calm, minimalist, keyboard-friendly, light and
 dark themes.

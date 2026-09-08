@@ -592,8 +592,16 @@ def load_config(path, cache={}):
 
   /* ═══════════════════════  State  ═══════════════════════ */
   const LS = { base: "sw.apiBase", theme: "sw.theme", remed: "sw.remediation" };
+  // Static dev servers (Live Server, Vite, CRA…) and the compose nginx dashboard
+  // don't serve the API — default those to the engine's own port.
+  const STATIC_DEV_PORTS = new Set(["5500", "5501", "5173", "3000", "4200"]);
+  const _apiDefault = () => {
+    if (location.protocol === "file:") return "http://localhost:8000";
+    if (STATIC_DEV_PORTS.has(location.port)) return `${location.protocol}//${location.hostname}:8000`;
+    return "";  // served by the engine, or reverse-proxied same-origin (compose)
+  };
   const state = {
-    apiBase: localStorage.getItem(LS.base) ?? (location.protocol === "file:" ? "http://localhost:8000" : ""),
+    apiBase: localStorage.getItem(LS.base) ?? _apiDefault(),
     theme: localStorage.getItem(LS.theme) || "system",
     health: null,
     conn: "connecting",        // connecting | online | offline
@@ -691,6 +699,7 @@ def load_config(path, cache={}):
     if (!r.ok) throw Object.assign(new Error(`HTTP ${r.status}`), { status: r.status, body: await r.json().catch(() => ({})) });
     return r.json();
   }
+  let _autoProbed = false;
   async function pollHealth() {
     try {
       const h = await apiGet("/health");
@@ -702,9 +711,31 @@ def load_config(path, cache={}):
       $("#remed-text").textContent = h.llm_live ? `AI remediation · ${esc(h.llm_provider)}` : "verified templates";
     } catch {
       state.conn = "offline"; state.health = null;
+      if (!_autoProbed && !localStorage.getItem(LS.base)) await autoDetectBackend();
     }
     renderConn();
-    if (state.route === "dashboard" || state.route === "webhooks" || state.route === "settings" || state.route === "history") render();
+    if (["dashboard", "webhooks", "settings", "history", ""].includes(state.route)) render();
+  }
+  async function autoDetectBackend() {
+    _autoProbed = true;
+    const candidates = [
+      `${location.protocol}//${location.hostname}:8000`,
+      "http://localhost:8000", "http://127.0.0.1:8000",
+    ].filter((c, i, a) => c !== state.apiBase && a.indexOf(c) === i);
+    const withTimeout = (ms) => (typeof AbortSignal !== "undefined" && AbortSignal.timeout ? { signal: AbortSignal.timeout(ms) } : {});
+    for (const base of candidates) {
+      try {
+        const r = await fetch(`${base}/health`, { cache: "no-store", ...withTimeout(1500) });
+        if (!r.ok) continue;
+        const h = await r.json();
+        if (h.service !== "devsecops-automation-engine") continue;  // some other service on that port
+        state.apiBase = base;
+        state.health = h; state.conn = "online";
+        toast(`Connected to engine at ${base}`, "ok");
+        connectSSE();
+        return;
+      } catch {}
+    }
   }
   function renderConn() {
     const chip = $("#chip-conn"), t = $("#conn-text");
@@ -864,7 +895,7 @@ def load_config(path, cache={}):
       <div id="ws">
         <div id="thread">${state.thread.length ? "" : heroHTML()}</div>
         <div class="composer-dock">
-          ${offline ? `<div class="banner" role="alert">${svg(IC.x, 15)} Backend unreachable at <code style="font-family:var(--mono)">${esc(state.apiBase || "same origin")}</code>. Check the server, or set the URL in Settings.</div>` : ""}
+          ${offline ? `<div class="banner" role="alert">${svg(IC.x, 15)} <div>Can't reach the analysis engine${state.apiBase ? ` at <code style="font-family:var(--mono)">${esc(state.apiBase)}</code>` : ""}. Start it with <code style="font-family:var(--mono)">uvicorn main:app</code> (or <code style="font-family:var(--mono)">docker compose up</code>), then open <code style="font-family:var(--mono)">http://localhost:8000/dashboard</code> — or set the API URL in Settings.</div></div>` : ""}
           <form class="composer" id="composer">
             <div class="composer-top">
               <input class="fname" id="c-filename" value="submission.py" aria-label="Filename" spellcheck="false" />
@@ -1378,7 +1409,7 @@ def load_config(path, cache={}):
     $("#set-base").addEventListener("change", (e) => {
       const val = e.target.value.trim();
       if (val) localStorage.setItem(LS.base, val); else localStorage.removeItem(LS.base);
-      state.apiBase = localStorage.getItem(LS.base) ?? "";
+      state.apiBase = localStorage.getItem(LS.base) ?? _apiDefault();
       reconnect();
     });
     $("#set-test").addEventListener("click", async () => { await reconnect(); toast(state.conn === "online" ? "Connected" : "Still unreachable", state.conn === "online" ? "ok" : "err"); });

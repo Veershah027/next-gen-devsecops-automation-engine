@@ -25,11 +25,12 @@ services:
       DEVSECOPS_ENVIRONMENT: production
       DEVSECOPS_LOG_JSON: "true"
       DEVSECOPS_SERVE_DASHBOARD: "true"
-      DEVSECOPS_CORS_ALLOW_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
+      DEVSECOPS_CORS_ALLOW_ORIGINS: '["http://localhost:${DASHBOARD_PORT:-8080}","http://127.0.0.1:${DASHBOARD_PORT:-8080}"]'
       DEVSECOPS_PERSISTENCE_ENABLED: "true"
       DEVSECOPS_DATABASE_PATH: /app/data/analyses.db
     ports:
-      - "8000:8000"
+      # host port is overridable: ENGINE_PORT=8100 docker compose up  (if 8000 is taken)
+      - "${ENGINE_PORT:-8000}:8000"
     read_only: true
     tmpfs:
       - /tmp:size=16m
@@ -61,8 +62,10 @@ services:
         condition: service_healthy
     volumes:
       - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - "8080:8080"
+      # open http://localhost:${DASHBOARD_PORT:-8080} — API is reverse-proxied, same-origin
+      - "${DASHBOARD_PORT:-8080}:8080"
     read_only: true
     tmpfs:
       - /tmp:size=8m
