@@ -69,8 +69,10 @@ Module layout mirrors the diagram — see [Project structure](#project-structure
   back-pressure.
 - **Optional SQLite history** — `/api/v1/analyses[...]`; the core pipeline works
   without it.
-- **Single-file dashboard** — dark UI, no build step, SSE console, findings log,
-  side-by-side diff, JSON export.
+- **Single-file workspace UI** — calm AI-assistant-style interface, no build
+  step; conversational analysis thread, finding cards, code viewer
+  (flagged / suggested / diff), verified-remediation flow, dashboard, history,
+  light &amp; dark themes.
 - **Hardened container** — multi-stage, non-root, read-only FS, dropped caps.
 - **Quality gates** — ruff, mypy, 216 tests, 92% coverage, `pip-audit`, all in CI.
 
@@ -208,17 +210,27 @@ or watch `GET /api/v1/stream-logs`.
 }
 ```
 
-## Dashboard
+## Workspace UI
 
-`GET /dashboard` (or open `index.html` directly and point it at the API). Dark
-single-page UI, Tailwind + Font Awesome via CDN, vanilla JS — no build step.
+`GET /dashboard` (or open `index.html` directly and set the API URL in Settings).
+A single self-contained HTML file — Tailwind + Inter/JetBrains Mono via CDN,
+vanilla JS, **no build step**. Calm, minimalist, keyboard-friendly, light and
+dark themes.
 
-- severity summary (critical / high / medium / low), highest severity, scan
-  duration, per-agent status, remediation + verification status
-- expandable findings with redacted evidence and remediation hints
-- side-by-side **flagged source vs patch**, unified-diff view, copy buttons
-- **Download JSON** of the full report
-- live SSE console, webhook delivery results, endpoint settings
+- **Analysis thread** — submit code, get a conversational security response;
+  multiple submissions form a session thread with live agent telemetry (SSE)
+- **Finding cards** — severity, category, location, redacted evidence,
+  remediation hint; expandable
+- **Code viewer** — flagged snippet (vulnerable line highlighted) · suggested
+  patch · unified diff, with lightweight Python syntax highlighting
+- **Verified-remediation flow** — a visible `generated → validated → re-scanned
+  → resolved` chain and a *Verified remediation* badge only when the backend
+  reports `validation.status == "validated"`
+- **Dashboard / History / Findings / Remediation** — aggregated from real
+  responses (and the SQLite store when persistence is on)
+- **Webhooks / Infrastructure / Settings** — live capability + component status
+  from `/health`, recent webhook deliveries, API-URL and theme controls
+- Error, loading, empty and offline states throughout — nothing fails silently
 
 > Screenshots: _add `docs/dashboard.png` after cloning and running locally._
 

@@ -75,8 +75,9 @@ class _RetryableStatus(LLMError):
 
 
 _PROVIDER_DEFAULTS: Final[dict[LLMProvider, tuple[str, str, str]]] = {
-    #                      base_url                       default model          native key var
-    LLMProvider.ANTHROPIC: ("https://api.anthropic.com", "claude-sonnet-5", "ANTHROPIC_API_KEY"),
+    #                      base_url                       default model    native key var
+    #  Anthropic has no default model - set DEVSECOPS_LLM_MODEL explicitly to use it.
+    LLMProvider.ANTHROPIC: ("https://api.anthropic.com", "", "ANTHROPIC_API_KEY"),
     LLMProvider.OPENAI: ("https://api.openai.com", "gpt-4o-mini", "OPENAI_API_KEY"),
     LLMProvider.NULL: ("", "", ""),
 }
@@ -121,6 +122,7 @@ class LLMConfig:
         return (
             self.provider is not LLMProvider.NULL
             and bool(self.api_key)
+            and bool(self.model)
             and self.base_url.startswith("https://")
         )
 

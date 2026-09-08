@@ -39,7 +39,7 @@ async def test_anthropic_success() -> None:
         return httpx.Response(
             200,
             json={
-                "model": "claude-sonnet-5",
+                "model": "anthropic-model-x",
                 "content": [{"type": "text", "text": "PATCHED CODE"}],
                 "usage": {"input_tokens": 12, "output_tokens": 5},
             },
@@ -49,7 +49,7 @@ async def test_anthropic_success() -> None:
     try:
         out = await client.complete(system="s", user="u")
         assert out.text == "PATCHED CODE"
-        assert out.model == "claude-sonnet-5"
+        assert out.model == "anthropic-model-x"
         assert out.input_tokens == 12
     finally:
         await http.aclose()
