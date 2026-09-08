@@ -212,13 +212,17 @@ or watch `GET /api/v1/stream-logs`.
 
 ## Workspace UI
 
-Open **`http://localhost:8000/dashboard`** once the engine is running — it is
-served same-origin so it works with no configuration. (If you instead open
-`index.html` through a static server such as VS Code Live Server, the UI
-auto-detects the engine on `:8000`, or you can set the API URL in Settings.)
 A single self-contained HTML file — Tailwind + Inter/JetBrains Mono via CDN,
 vanilla JS, **no build step**. Calm, minimalist, keyboard-friendly, light and
 dark themes.
+
+**How to open it:** start the engine, then browse to `/dashboard` **on the port
+the engine is actually listening on** — e.g. `http://127.0.0.1:8000/dashboard`.
+It's served same-origin, so there's nothing to configure. If port 8000 is
+already in use on your machine, run `uvicorn main:app --port 8010` and open
+`http://127.0.0.1:8010/dashboard` instead. (Opening `index.html` through a
+static server like VS Code Live Server also works — the UI auto-detects the
+engine on `:8000`, or you set the API URL in **Settings**.)
 
 - **Analysis thread** — submit code, get a conversational security response;
   multiple submissions form a session thread with live agent telemetry (SSE)
@@ -248,14 +252,23 @@ python -m venv .venv
 pip install -r requirements.txt
 
 cp .env.example .env               # optional — runs fully without it
-uvicorn main:app --reload
+
+# pick any free port; 8000 is just the default
+uvicorn main:app --reload --port 8000
 ```
 
-* API docs …… <http://127.0.0.1:8000/docs>
-* Dashboard … <http://127.0.0.1:8000/dashboard>
+Then open, **on that same port**:
+
+- Workspace UI — `http://127.0.0.1:8000/dashboard`
+- API docs — `http://127.0.0.1:8000/docs`
+
+> If `uvicorn` reports `address already in use`, another program owns port 8000 —
+> re-run with `--port 8010` (or any free port) and use that number in the URLs
+> above.
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/api/v1/analyze \
+PORT=8000   # match the port you started the engine on
+curl -s -X POST "http://127.0.0.1:$PORT/api/v1/analyze" \
   -H 'Content-Type: application/json' \
   -d '{"filename":"svc.py","source_code":"import os\nAPI_KEY = \"AKIAIOSFODNN7EXAMPLE\"\n"}' | python -m json.tool
 ```
@@ -264,8 +277,17 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/analyze \
 
 ```bash
 docker compose up --build
-# engine    → http://localhost:8000   (persistence enabled, data in a named volume)
-# dashboard → http://localhost:8080
+```
+
+- Dashboard — `http://localhost:8080` (the API is reverse-proxied, so it's
+  same-origin — nothing to configure)
+- Engine (direct) — `http://localhost:8000`
+
+If 8000 / 8080 are taken on your machine, remap the host ports:
+
+```bash
+ENGINE_PORT=8100 DASHBOARD_PORT=8180 docker compose up --build
+# → dashboard at http://localhost:8180
 ```
 
 Single container:
@@ -273,10 +295,11 @@ Single container:
 ```bash
 docker build -t devsecops-engine .
 docker run --rm -p 8000:8000 -e DEVSECOPS_ENVIRONMENT=production devsecops-engine
+# → http://localhost:8000/dashboard   (change the left-hand 8000 if the port is busy)
 ```
 
 Deploys as-is to AWS ECS / Google Cloud Run: push the image, set the `DEVSECOPS_*`
-environment, expose port 8000.
+environment, expose the container's port 8000.
 
 ## Environment variables
 
@@ -286,7 +309,7 @@ Every knob is a `DEVSECOPS_`-prefixed variable — full list with defaults in
 | Variable | Default | Purpose |
 |---|---|---|
 | `DEVSECOPS_ENVIRONMENT` | `development` | `production` disables `/docs` and reload |
-| `DEVSECOPS_CORS_ALLOW_ORIGINS` | localhost:3000/8080 | exact browser origins (JSON array) |
+| `DEVSECOPS_CORS_ALLOW_ORIGINS` | common dev ports (3000/5173/5500/8080) | exact browser origins (JSON array) — only needed for a cross-origin static-server UI |
 | `DEVSECOPS_LLM_PROVIDER` | `null` | `anthropic` / `openai` to enable AI drafting |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | — | provider key (or `DEVSECOPS_LLM_API_KEY`) |
 | `DEVSECOPS_GITHUB_WEBHOOK_SECRET` | — | unset ⇒ `/api/v1/webhook` returns `503` |
