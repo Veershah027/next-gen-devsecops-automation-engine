@@ -22,9 +22,9 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -58,8 +58,8 @@ jobs:
     name: dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
@@ -71,7 +71,7 @@ jobs:
     name: docker build + smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build image
         uses: docker/build-push-action@v6
@@ -98,14 +98,13 @@ jobs:
             -d '{"filename":"t.py","source_code":"import os\nAPI_KEY = \"AKIAIOSFODNN7EXAMPLE\"\n"}' \
             | python -c "import sys,json; d=json.load(sys.stdin); assert d['gate_passed'] is False; print('gate correctly failed')"
 
-      - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: devsecops-automation-engine:ci
-          format: table
-          exit-code: "0"          # report only; do not fail the build on base-image CVEs
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
+      - name: Trivy image scan (report-only)
+        continue-on-error: true
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.58.0 image \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 \
+            devsecops-automation-engine:ci
 
       - name: Stop container
         if: always()
