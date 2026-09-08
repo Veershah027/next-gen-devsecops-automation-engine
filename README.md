@@ -14,7 +14,7 @@ honest verdict (`validated` / `unresolved` / `rejected` / `not_checked`).
 > `bandit`, `semgrep`, or CodeQL — see [Known limitations](#known-limitations)
 > and [`SECURITY.md`](SECURITY.md).
 
-![CI](https://img.shields.io/badge/CI-github_actions-informational)
+[![CI](https://github.com/Veershah027/next-gen-devsecops-automation-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Veershah027/next-gen-devsecops-automation-engine/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-blue)
 ![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -225,7 +225,7 @@ single-page UI, Tailwind + Font Awesome via CDN, vanilla JS — no build step.
 ## Local installation
 
 ```bash
-git clone https://github.com/<your-username>/next-gen-devsecops-automation-engine.git
+git clone https://github.com/Veershah027/next-gen-devsecops-automation-engine.git
 cd next-gen-devsecops-automation-engine
 
 python -m venv .venv
