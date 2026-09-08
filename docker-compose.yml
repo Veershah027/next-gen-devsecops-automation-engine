@@ -52,7 +52,9 @@ services:
           memory: 512M
 
   dashboard:
-    image: nginx:1.27-alpine
+    # nginx-unprivileged runs as uid 101 and listens on 8080 - no root, no chown,
+    # so it works with a read-only root FS and all capabilities dropped.
+    image: nginxinc/nginx-unprivileged:1.27-alpine
     restart: unless-stopped
     depends_on:
       engine:
@@ -60,20 +62,21 @@ services:
     volumes:
       - ./index.html:/usr/share/nginx/html/index.html:ro
     ports:
-      - "8080:80"
+      - "8080:8080"
     read_only: true
     tmpfs:
+      - /tmp:size=8m
       - /var/cache/nginx:size=16m
-      - /var/run:size=1m
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:80/"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 3s
       retries: 3
+      start_period: 5s
 
 volumes:
   engine-data:
